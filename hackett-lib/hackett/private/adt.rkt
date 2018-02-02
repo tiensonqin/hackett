@@ -17,12 +17,14 @@
          (except-in hackett/private/base @%app)
          (only-in hackett/private/kernel [λ plain-λ] [#%app @%app]))
 
-(provide (for-syntax type-constructor-spec data-constructor-spec)
+(provide (for-syntax type-constructor-spec data-constructor-spec
+                     type-constructor-val data-constructor-val)
          (rename-out [λ lambda] [λ* lambda*])
          data case* case λ λ* defn _)
 
 (begin-for-syntax
   (provide (contract-out [struct type-constructor ([type τ?]
+                                                   [arity exact-nonnegative-integer?]
                                                    [data-constructors (listof identifier?)]
                                                    [fixity operator-fixity?])]
                          [struct data-constructor ([macro procedure?]
@@ -77,17 +79,38 @@
              #:attr nullary? #f
              #:attr fixity #f])
 
-  (struct type-constructor (type data-constructors fixity)
+  (struct type-constructor (type arity data-constructors fixity)
+    #:transparent
     #:property prop:procedure
     (λ (ctor stx) ((make-type-variable-transformer (type-constructor-type ctor)) stx))
     #:property prop:infix-operator (λ (ctor) (type-constructor-fixity ctor)))
 
   (struct data-constructor (macro type make-match-pat fixity)
+    #:transparent
     #:property prop:procedure (struct-field-index macro)
     #:property prop:infix-operator (λ (ctor) (data-constructor-fixity ctor)))
 
-  (define-syntax-class/specialize data-constructor-val
-    (local-value data-constructor? #:failure-message "not bound as a data constructor"))
+  (define-syntax-class type-constructor-val
+    #:attributes [local-value type arity data-constructors fixity]
+    #:commit
+    #:description #f
+    [pattern
+     {~var || (local-value type-constructor? #:failure-message "not bound as a type constructor")}
+     #:attr type (type-constructor-type (attribute local-value))
+     #:attr arity (type-constructor-arity (attribute local-value))
+     #:attr data-constructors (type-constructor-data-constructors (attribute local-value))
+     #:attr fixity (type-constructor-fixity (attribute local-value))])
+
+  (define-syntax-class data-constructor-val
+    #:attributes [local-value macro type make-match-pat fixity]
+    #:commit
+    #:description #f
+    [pattern
+     {~var || (local-value data-constructor? #:failure-message "not bound as a data constructor")}
+     #:attr macro (data-constructor-macro (attribute local-value))
+     #:attr type (data-constructor-type (attribute local-value))
+     #:attr make-match-pat (data-constructor-make-match-pat (attribute local-value))
+     #:attr fixity (data-constructor-fixity (attribute local-value))])
 
   ; Given a curried function type, produce a list of uncurried arguments and the result type. If the
   ; function is quantified, the type will be instantiated with fresh existentials.
@@ -454,6 +477,7 @@
    #`(begin-
        (define-syntax- τ*.tag (type-constructor
                                (τ:con #'τ*.tag)
+                               '#,(attribute τ*.len)
                                (list #'constructor.tag ...)
                                fixity-expr))
        (define-data-constructor τ* constructor) ...)])

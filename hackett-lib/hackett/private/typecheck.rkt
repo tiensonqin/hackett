@@ -48,7 +48,7 @@
                                                [subgoals (listof constr?)]
                                                [ts (listof (and/c τ? τ-mono?))]
                                                [dict-expr syntax?])])
-         τ? τ=? constr? τ-mono? τ-vars^ τ->string τ-wf! current-τ-wf! τ:app* τ:-> τ:->? τ:->*
+         τ? τ=? constr? τ-mono? τ-vars^ τ->string τ-wf! current-τ-wf! τ:app* τ:-> τ:->*? τ:->* τ:->**
          generalize inst insts τ<:/full! τ<:/elaborate! τ<:! τ-inst-l! τ-inst-r!
          ctx-elem? ctx? ctx-elem=? ctx-member? ctx-remove
          ctx-find-solution current-ctx-solution apply-subst apply-current-subst
@@ -182,9 +182,9 @@
          [(τ:qual constr t) (flatten-qual (cons constr constrs) t)]
          [other `(=> ,(map τ->datum (reverse constrs)) ,(τ->datum t))]))]))
 
-(define/contract (apply-τ t ts)
-  (-> τ? (listof τ?) τ?)
-  (foldl t #{τ:app %2 %1} ts))
+(define/contract (apply-τ t . ts)
+  (-> τ? τ? ... τ?)
+  (foldl #{τ:app %2 %1} t ts))
 (define (unapply-τ t)
   (-> τ? (non-empty-listof τ?))
   (match t
@@ -322,18 +322,30 @@
 ; order to implement higher-rank polymorphism, so they are defined here.
 
 (define τ:-> (τ:con #'->))
-
 (define (mk-τ:-> a b) (τ:app (τ:app τ:-> a) b))
 (define-match-expander τ:->*
   (syntax-parser
     [(_ a b)
      #'(τ:app (τ:app (== τ:-> τ=?) a) b)])
   (make-variable-like-transformer #'mk-τ:->))
-
-(define τ:->?
+(define τ:->*?
   (match-lambda
     [(τ:->* _ _) #t]
     [_ #f]))
+
+(define/contract (apply-τ:-> . ts)
+  (-> τ? τ? ... τ?)
+  (match-let ([{list ts ... t} ts])
+    (foldr #{mk-τ:-> %2 %1} t ts)))
+(define/contract (unapply-τ:-> t)
+  (-> τ? (non-empty-listof τ?))
+  (match t
+    [(τ:->* a b) (cons a (unapply-τ:-> b))]
+    [_ (list t)]))
+(define-match-expander τ:->**
+  (syntax-parser
+    [(_ list-pats ...+) #'(app unapply-τ:-> (list list-pats ...))])
+  (make-variable-like-transformer #'apply-τ:->))
 
 ;; ---------------------------------------------------------------------------------------------------
 ;; subsumption, instantiation, and elaboration

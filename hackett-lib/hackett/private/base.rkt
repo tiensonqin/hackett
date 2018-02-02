@@ -367,7 +367,7 @@
   [(_ x:id e:expr)
    #:do [(define t (get-expected this-syntax))]
    #:fail-unless t "no expected type, add more type annotations"
-   #:fail-unless (τ:->? t) (format "expected ~a, given function" (τ->string t))
+   #:fail-unless (τ:->*? t) (format "expected ~a, given function" (τ->string t))
    #:do [(match-define (τ:->* a b) t)
          (define-values [xs- e-] (τ⇐/λ! #'e b (list (cons #'x a))))]
    #:with [x-] xs-
